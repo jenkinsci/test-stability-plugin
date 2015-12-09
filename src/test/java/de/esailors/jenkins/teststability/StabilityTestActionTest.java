@@ -38,9 +38,9 @@ public class StabilityTestActionTest {
 		}
 		
 		StabilityTestAction action = new StabilityTestAction(ringBuffer);
+		
 		Assert.assertEquals(0, action.getFlakiness());
 	}
-
 	@Test
 	public void childFlakinessMustBeMinusOneWhenRingBufferIsNull() {
 		CircularStabilityHistory ringBuffer = null;
