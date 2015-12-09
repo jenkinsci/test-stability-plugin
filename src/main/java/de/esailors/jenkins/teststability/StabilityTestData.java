@@ -40,45 +40,43 @@ import jenkins.model.Jenkins;
 /**
  * {@link Data} for the test stability history.
  * 
- * @author ckutz
+ * @author ckutz, vincentballet (UIUC CS427)
  */
 @SuppressWarnings("deprecation")
 class StabilityTestData extends Data {
-	
+
 	static {
 		// TODO: this doesn't seem to work
 		Jenkins.XSTREAM2.aliasType("circularStabilityHistory", CircularStabilityHistory.class);
 	}
-	
-	private final Map<String,CircularStabilityHistory> stability;
-	
+
+	private final Map<String, CircularStabilityHistory> stability;
+
 	public StabilityTestData(Map<String, CircularStabilityHistory> stabilityHistory) {
 		this.stability = stabilityHistory;
 	}
 
 	@Override
 	public List<? extends TestAction> getTestAction(TestObject testObject) {
-		
-		if (testObject instanceof CaseResult || testObject instanceof ClassResult || testObject instanceof PackageResult || testObject instanceof TestResult) {
+
+		if (testObject instanceof CaseResult || testObject instanceof ClassResult || testObject instanceof PackageResult
+				|| testObject instanceof TestResult) {
 			CircularStabilityHistory ringBuffer = stability.get(testObject.getId());
-				StabilityTestAction action = new StabilityTestAction(ringBuffer);
-				return Collections.singletonList(action);
-			}
+			StabilityTestAction action = new StabilityTestAction(ringBuffer);
+			return Collections.singletonList(action);
+		}
 		return Collections.emptyList();
 	}
-	
-	
-	
+
 	public static class Result {
 		int buildNumber;
 		boolean passed;
-		
+
 		public Result(int buildNumber, boolean passed) {
 			super();
 			this.buildNumber = buildNumber;
 			this.passed = passed;
 		}
 	}
-	
-	
+
 }
