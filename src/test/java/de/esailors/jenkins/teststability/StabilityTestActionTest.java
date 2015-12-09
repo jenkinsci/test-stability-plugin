@@ -38,9 +38,7 @@ public class StabilityTestActionTest {
 		}
 		
 		StabilityTestAction action = new StabilityTestAction(ringBuffer);
-		
-		Assert.fail();
-		//Assert.assertEquals(0, action.getFlakiness());
+		Assert.assertEquals(0, action.getFlakiness());
 	}
 
 	@Test
