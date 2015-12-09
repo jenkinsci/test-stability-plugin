@@ -24,6 +24,7 @@
 package de.esailors.jenkins.teststability;
 
 import jenkins.model.Jenkins;
+import java.util.*;
 
 import com.thoughtworks.xstream.converters.Converter;
 import com.thoughtworks.xstream.converters.MarshallingContext;
@@ -47,14 +48,71 @@ public class CircularStabilityHistory {
 	  private int tail;
 	  // number of elements in queue
       private int size = 0; 
+      private int failed = 0;
+      private int testStatusChanges = 0;
+      private String name = "";
 
+      private boolean shouldPublish = false;
+
+      private int flakiness;
+      private int stability;
+
+      private Set<CircularStabilityHistory> children = new HashSet<CircularStabilityHistory>();
+      private CircularStabilityHistory parent = null;
+      
       private CircularStabilityHistory() {}
       
+   	public void updateResultForChildren() {
+        int oldTail = tail - 1;
+        if (tail == 0) {
+            oldTail = data.length - 1;
+        } 
+        if (children.isEmpty()) {
+            return;
+        }
+        boolean newResult = true;
+
+        data[oldTail].passed = newResult;
+    }
+
 	  public CircularStabilityHistory(int maxSize) {
+	  	flakiness = 0;
+        stability = 100;
 	    data = new Result[maxSize];
 	    head = 0;
 	    tail = 0;
 	  }
+
+    public boolean isMostRecentTestRegressed() {
+        if (size < 2) {
+            return false;
+        }
+        
+        int oldTail = (tail - 1 + this.data.length) % this.data.length;
+        int oldPrevTail = (oldTail - 1 + this.data.length) % this.data.length;
+        
+        return (this.data[oldPrevTail].passed && !this.data[oldTail].passed);
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String newName) {
+        name = newName;
+    }
+
+    public boolean isShouldPublish() {
+        return this.shouldPublish;
+    }
+
+    public void setShouldPublish(boolean shouldPublish) {
+        this.shouldPublish = shouldPublish;
+    }
+
+    public int getSize() {
+        return size;
+    }
 
 	  public boolean add(Result value) {
 	      data[tail] = value;
@@ -88,6 +146,128 @@ public class CircularStabilityHistory {
 		return this.data.length;
 	}
 	
+    private void computeStability() {
+        this.failed = 0;
+        
+        for (Result r : this.getData()) {
+            if (!r.passed) {
+                this.failed++;
+            }
+        }
+        
+        this.stability = 100 * (size - failed) / (size == 0 ? 1 : size);
+    }
+
+    /**
+     * Computes the flakiness in percent. (Is this really flakiness? Doesn't check if code changed or not, but this is a problem for later)
+     */
+    private void computeFlakiness() {
+        Boolean previousPassed = null;
+        
+        this.testStatusChanges = 0;
+        
+        for (Result r : this.getData()) {
+            boolean thisPassed = r.passed;
+            if (previousPassed != null && previousPassed != thisPassed) {
+                this.testStatusChanges++;
+            }
+            previousPassed = thisPassed;
+        }
+        
+        if (size > 1) {
+            this.flakiness = 100 * testStatusChanges / (size - 1);
+        } else {
+            this.flakiness = 0;
+        }
+    }
+
+
+    /*
+    * Returns the flakiness in percent
+    */
+    public int getFlakiness() {
+        computeFlakiness();
+        return this.flakiness;
+    }
+    
+    public int getStability() {
+        computeStability();
+        return this.stability;
+    }
+    
+    public int getFailed() {
+        this.failed = 0;
+        
+        for (Result r : this.getData()) {
+            if (!r.passed) {
+                this.failed++;
+            }
+        }
+        
+        return this.failed;
+    }
+    
+    /*    Getter function for children
+    */
+    public Set<CircularStabilityHistory> getChildren() {
+        return children;
+    }
+    
+    public CircularStabilityHistory getParent() {
+        return parent;
+    }
+    
+    public void addChild(CircularStabilityHistory newChild) {
+        if (children.add(newChild)){
+            newChild.parent = this;
+        }   
+    }
+    
+    //Spike test : remove children due to filter
+    public void removeChild(String childName){
+        for (CircularStabilityHistory child : children){
+            if ((child.name).equals(childName)){
+                children.remove(child);
+            }
+        }
+    }
+    
+    
+    /*
+    Returns the most flaky child
+    */
+    public CircularStabilityHistory getFlakiestChild() {
+        CircularStabilityHistory flakiestChild = null;
+        
+        // myLog.log(Level.FINE, "Finding flakiest child of " + this.getName());
+        
+        for (CircularStabilityHistory child : children) {
+            // myLog.log(Level.FINE, "Checking flakiness of child " + child.getName());
+            if (flakiestChild == null || flakiestChild.getFlakiness() < child.getFlakiness()) {
+                //myLog.log(Level.FINE, "Child " + child.getName() + " is the flakiest child of " + this.getName());
+                flakiestChild = child;
+            }
+        }
+        
+        return flakiestChild;
+    }
+    
+    /*
+    Returns the least stable child
+    */
+    public CircularStabilityHistory getLeastStableChild() {
+        CircularStabilityHistory leastStableChild = null;
+        
+        for (CircularStabilityHistory child : children) {
+            if (leastStableChild == null || leastStableChild.getStability() > child.getStability()) {
+                leastStableChild = child;
+            }
+        }
+        
+        return leastStableChild;
+    }
+
+
 	static {
 		Jenkins.XSTREAM2.registerConverter(new ConverterImpl());
 	}

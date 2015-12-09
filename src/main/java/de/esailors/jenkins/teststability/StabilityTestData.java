@@ -28,6 +28,8 @@ import hudson.tasks.junit.TestAction;
 import hudson.tasks.junit.TestObject;
 import hudson.tasks.junit.TestResultAction.Data;
 import hudson.tasks.junit.CaseResult;
+import hudson.tasks.junit.TestResult;
+import hudson.tasks.junit.PackageResult;
 
 import java.util.Collections;
 import java.util.List;
@@ -57,11 +59,11 @@ class StabilityTestData extends Data {
 	@Override
 	public List<? extends TestAction> getTestAction(TestObject testObject) {
 		
-		if (testObject instanceof CaseResult || testObject instanceof ClassResult) {
+		if (testObject instanceof CaseResult || testObject instanceof ClassResult || testObject instanceof PackageResult || testObject instanceof TestResult) {
 			CircularStabilityHistory ringBuffer = stability.get(testObject.getId());
-			return Collections.singletonList(new StabilityTestAction(ringBuffer));
-		}
-		
+				StabilityTestAction action = new StabilityTestAction(ringBuffer);
+				return Collections.singletonList(action);
+			}
 		return Collections.emptyList();
 	}
 	

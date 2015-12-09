@@ -23,16 +23,29 @@
  */
 package de.esailors.jenkins.teststability;
 
+import java.util.logging.*; 
+
+import javax.mail.MessagingException;
+
 import hudson.Extension;
 import hudson.Launcher;
 import hudson.model.BuildListener;
 import hudson.model.AbstractBuild;
 import hudson.model.Descriptor;
+import hudson.util.FormValidation;
+import hudson.scm.ChangeLogSet;
 import hudson.tasks.junit.PackageResult;
 import hudson.tasks.junit.TestDataPublisher;
 import hudson.tasks.junit.TestResult;
 import hudson.tasks.junit.TestResultAction.Data;
 import hudson.tasks.junit.ClassResult;
+import hudson.tasks.test.TabulatedResult;
+import hudson.tasks.junit.CaseResult;
+
+import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Arrays;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,14 +53,16 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Date;
 
 import net.sf.json.JSONObject;
 
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.QueryParameter;
+
 
 import de.esailors.jenkins.teststability.StabilityTestData.Result;
-
 /**
  * {@link TestDataPublisher} for the test stability history.
  * 
@@ -56,57 +71,133 @@ import de.esailors.jenkins.teststability.StabilityTestData.Result;
 public class StabilityTestDataPublisher extends TestDataPublisher {
 	
 	public static final boolean DEBUG = false; 
-	
+    private static final Logger myLog = Logger.getLogger(StabilityTestDataPublisher.class.getName());
+
+	private boolean useMails = false;
+	private String recipients = "";
+
 	@DataBoundConstructor
-	public StabilityTestDataPublisher() {
+	public StabilityTestDataPublisher(String recipients, boolean useMails) {
+		this.recipients = recipients;
+		this.useMails = useMails;
 	}
 	
+	/**
+	 * Getter for sending email notifications boolean
+	 * @return Boolean toggle for sending emails for build status
+	 */
+	public boolean getUseMails() {
+		return useMails;
+	}
+
+	/**
+	 * Getter for list of email addresses
+	 * @return List of whitespace separated email addresses for email notifications
+	 */
+	public String getRecipients() {
+		return recipients;
+	}
+
 	@Override
+	/**
+	 * Builds the circular stability history from previous histories and adds the current build
+	 * data through the addResultToMap function. If the build was triggered from an SCM poll, it
+	 * will check for and send email/text notifications to the specified list of recipients.
+	 * @param build Object representing the current Jenkins build
+	 * @param launcher Object that starts a process and inherits environemtn variables
+	 * @param listener Object that listens for build notifications
+	 * @param testResult Object that contains the root of all test results for one build
+	 * @return A new stability test data that contains information about the build
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
 	public Data getTestData(AbstractBuild<?, ?> build, Launcher launcher,
 			BuildListener listener, TestResult testResult) throws IOException,
-			InterruptedException {
-		
+	InterruptedException {
+
+		Date date = new Date();
+
 		Map<String,CircularStabilityHistory> stabilityHistoryPerTest = new HashMap<String,CircularStabilityHistory>();
-		
-		Collection<hudson.tasks.test.TestResult> classAndCaseResults = getClassAndCaseResults(testResult);
-		debug("Found " + classAndCaseResults.size() + " test results", listener);
-		for (hudson.tasks.test.TestResult result: classAndCaseResults) {
-			
-			CircularStabilityHistory history = getPreviousHistory(result);
-			
-			if (history != null) {
-				if (result.isPassed()) {
-					history.add(build.getNumber(), true);
-					
-					if (history.isAllPassed()) {
-						history = null;
+		int maxHistoryLength = getDescriptor().getMaxHistoryLength(); 
+
+		//Build the new CircularStabilityHistory
+		addResultToMap(build.getNumber(), listener, stabilityHistoryPerTest, testResult, maxHistoryLength, date.getTime()); 
+
+		ChangeLogSet<? extends ChangeLogSet.Entry> changeSet = build.getChangeSet();
+		if (changeSet != null && !changeSet.isEmptySet()) {
+			Object item = changeSet.getItems()[0];
+			String author = ((ChangeLogSet.Entry) item).getAuthor().getId();
+
+	 		if (this.useMails){
+	 			RegressionReportNotifier rrNotifier = new RegressionReportNotifier();
+				for (Map.Entry<String, CircularStabilityHistory> e : stabilityHistoryPerTest.entrySet()) {
+					CircularStabilityHistory h = e.getValue();
+					if (h != null && h.isMostRecentTestRegressed() && h.isShouldPublish()) {
+						rrNotifier.addResult(e.getKey(), h);
 					}
-					
-				} else if (result.getFailCount() > 0) {
-					history.add(build.getNumber(), false);
 				}
-				// else test is skipped and we leave history unchanged
-				
-				if (history != null) {
-					stabilityHistoryPerTest.put(result.getId(), history);
-				} else {
-					stabilityHistoryPerTest.remove(result.getId());
+				try{ 
+					rrNotifier.mailReport(recipients, author, listener, build);
+				} catch(MessagingException e){
+						myLog.log(Level.FINE, "MessagingException to be handled");
 				}
-			} else if (isFirstTestFailure(result, history)) {
-				debug("Found failed test " + result.getId(), listener);
-				int maxHistoryLength = getDescriptor().getMaxHistoryLength();
-				CircularStabilityHistory ringBuffer = new CircularStabilityHistory(maxHistoryLength);
-				
-				// add previous results (if there are any):
-				buildUpInitialHistory(ringBuffer, result, maxHistoryLength - 1);
-				
-				ringBuffer.add(build.getNumber(), false);
-				stabilityHistoryPerTest.put(result.getId(), ringBuffer);
-			}
+			}	
 		}
-		
 		return new StabilityTestData(stabilityHistoryPerTest);
+	}  
+
+	private CircularStabilityHistory addResultToMap(int buildNumber, BuildListener listener, Map<String,CircularStabilityHistory> stabilityHistoryPerTest,
+			hudson.tasks.test.TestResult result, int maxHistoryLength, long currentTime) {
+
+		// Commented Out by Forrest, Testing get test results history for all passed tests
+		CircularStabilityHistory history = getPreviousHistory(result); 
+		if (history == null) {
+			history = new CircularStabilityHistory(maxHistoryLength);
+			buildUpInitialHistory(history, result, maxHistoryLength - 1);
+		}
+
+		if (history != null) {
+			if (result.isPassed()) {
+				history.add(buildNumber, true);
+
+				// A design decision that simply puts all null buffer for the plugin to output 100% success and 0% flakiness
+				if (history.isAllPassed()) {
+					// Commented out by Forrest
+					//      history = null;
+				}
+
+			} else if (result.getFailCount() > 0) {
+				history.add(buildNumber, false);
+			}
+			// else test is skipped and we leave history unchanged
+
+			if ((result instanceof TabulatedResult)) {
+				for (hudson.tasks.test.TestResult child : ((TabulatedResult) result).getChildren()) { 
+					CircularStabilityHistory childBuffer = addResultToMap(buildNumber, listener, stabilityHistoryPerTest, child, maxHistoryLength, currentTime);
+					if (childBuffer != null) {
+						history.addChild(childBuffer);
+					}
+				}
+			}
+
+			if(result instanceof CaseResult && ((CaseResult)result).getStatus() == CaseResult.Status.FIXED) {
+				myLog.log(Level.FINE, "Name: " + result.getName());
+				myLog.log(Level.FINE, "Status: " + ((CaseResult)result).getStatus()); 
+				myLog.log(Level.FINE, "Error Trace: " + result.getErrorStackTrace());
+			}
+
+			history.setName(result.getName());
+			if (result instanceof CaseResult) {
+				history.setShouldPublish(true);
+			}
+			stabilityHistoryPerTest.put(result.getId(), history);
+
+			return history;
+		}
+
+		return null;
 	}
+
 	
 	private void debug(String msg, BuildListener listener) {
 		if (StabilityTestDataPublisher.DEBUG) {
@@ -165,21 +256,21 @@ public class StabilityTestDataPublisher extends TestDataPublisher {
 			
 			
 			// TODO: Untested:
-//			if (result instanceof ClassResult) {
-//				ClassResult cr = (ClassResult) result;
-//				PackageResult pkgResult = cr.getParent();
-//				hudson.tasks.test.TestResult topLevelPrevious = pkgResult.getParent().getPreviousResult();
-//				if (topLevelPrevious != null) {
-//					if (topLevelPrevious instanceof TestResult) {
-//						TestResult junitTestResult = (TestResult) topLevelPrevious;
-//						PackageResult prvPkgResult = junitTestResult.byPackage(pkgResult.getName());
-//						if (pkgResult != null) {
-//							return pkgResult.getClassResult(cr.getName());
-//						}
-//					}
-//				}
-//					
-//			}
+			// if (result instanceof ClassResult) {
+			// 	ClassResult cr = (ClassResult) result;
+			// 	PackageResult pkgResult = cr.getParent();
+			// 	hudson.tasks.test.TestResult topLevelPrevious = pkgResult.getParent().getPreviousResult();
+			// 	if (topLevelPrevious != null) {
+			// 		if (topLevelPrevious instanceof TestResult) {
+			// 			TestResult junitTestResult = (TestResult) topLevelPrevious;
+			// 			PackageResult prvPkgResult = junitTestResult.byPackage(pkgResult.getName());
+			// 			if (pkgResult != null) {
+			// 				return pkgResult.getClassResult(cr.getName());
+			// 			}
+			// 		}
+			// 	}
+					
+			// }
 			
 			return null;
 		}
