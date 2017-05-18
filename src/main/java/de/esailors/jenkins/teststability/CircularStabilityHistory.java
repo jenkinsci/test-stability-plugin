@@ -32,6 +32,9 @@ import com.thoughtworks.xstream.io.HierarchicalStreamReader;
 import com.thoughtworks.xstream.io.HierarchicalStreamWriter;
 
 import de.esailors.jenkins.teststability.StabilityTestData.Result;
+import org.apache.commons.lang.exception.ExceptionUtils;
+
+import java.util.logging.Logger;
 
 /**
  * Circular history of test results.
@@ -46,7 +49,9 @@ public class CircularStabilityHistory {
 	  private int head; 
 	  private int tail;
 	  // number of elements in queue
-      private int size = 0; 
+      private int size = 0;
+
+	  private transient static final Logger log = Logger.getLogger(CircularStabilityHistory.class.getName());
 
       private CircularStabilityHistory() {}
       
@@ -89,13 +94,22 @@ public class CircularStabilityHistory {
 	}
 	
 	static {
-		Jenkins.XSTREAM2.registerConverter(new ConverterImpl());
+		try {
+			Jenkins.XSTREAM2.registerConverter(new ConverterImpl());
+		} catch (Exception e) {
+			log.severe(ExceptionUtils.getStackTrace(e));
+		}
 	}
 	
 	public static class ConverterImpl implements Converter {
 
 		public boolean canConvert(@SuppressWarnings("rawtypes") Class type) {
-			return CircularStabilityHistory.class.isAssignableFrom(type);
+			try {
+				return CircularStabilityHistory.class.isAssignableFrom(type);
+			} catch (Exception e) {
+				log.severe(ExceptionUtils.getStackTrace(e));
+			}
+			return false;
 		}
 
 		public void marshal(Object source, HierarchicalStreamWriter writer,
