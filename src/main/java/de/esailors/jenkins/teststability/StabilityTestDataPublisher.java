@@ -23,6 +23,7 @@
  */
 package de.esailors.jenkins.teststability;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -164,6 +165,7 @@ public class StabilityTestDataPublisher extends TestDataPublisher {
 
 
 	// NB: abstract TestResult
+	@SuppressFBWarnings(value = "DCN_NULLPOINTER_EXCEPTION", justification = "Needs investigation to see if a bug in JUnit or if something this plugin is doing")
 	private @Nullable hudson.tasks.test.TestResult getPreviousResultSafely(hudson.tasks.test.TestResult result) {
 		try {
 			return result.getPreviousResult();
