@@ -9,7 +9,7 @@
   <groupId>de.esailors.jenkins</groupId>
   <artifactId>test-stability</artifactId>
   <name>Test stability history</name>
-  <version>2.4</version>
+  <version>${revision}${changelist}</version>
   <packaging>hpi</packaging>
   <url>https://github.com/jenkinsci/test-stability-plugin</url>
 
@@ -29,7 +29,7 @@
   </pluginRepositories>
 
   <properties>
-    <revision>2.4</revision>
+    <revision>2.5</revision>
     <changelist>-SNAPSHOT</changelist>
     <gitHubRepo>jenkinsci/test-stability-plugin</gitHubRepo>
     <jenkins.baseline>2.440</jenkins.baseline>
@@ -88,6 +88,6 @@
     <connection>scm:git:ssh://github.com/${gitHubRepo}.git</connection>
     <developerConnection>scm:git:git@github.com:${gitHubRepo}.git</developerConnection>
     <url>https://github.com/${gitHubRepo}</url>
-    <tag>test-stability-2.4</tag>
+    <tag>${scmTag}</tag>
   </scm>
 </project>
