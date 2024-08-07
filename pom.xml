@@ -1,32 +1,18 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>2.25</version>
+    <version>4.85</version>
   </parent>
 
   <groupId>de.esailors.jenkins</groupId>
   <artifactId>test-stability</artifactId>
   <name>Test stability history</name>
-  <version>2.4-SNAPSHOT</version>
+  <version>${revision}${changelist}</version>
   <packaging>hpi</packaging>
-  <url>https://wiki.jenkins-ci.org/display/JENKINS/Test+stability+plugin</url>
-  
-  <developers>
-  	<developer>
-  		<id>kutzi</id>
-  		<name>Christoph Kutzinski</name>
-  		<email>christoph.kutzinsk@esailors.de</email>
-  		<timezone>-1</timezone>
-  	</developer>
-  	<developer>
-  		<id>seanf</id>
-  		<name>Sean Flanigan</name>
-  		<email>sflaniga@redhat.com</email>
-  		<timezone>+10</timezone>
-  	</developer>
-  </developers>
+  <url>https://github.com/jenkinsci/test-stability-plugin</url>
 
   <!-- get every artifact through repo.jenkins-ci.org, which proxies all the artifacts that we need -->
   <repositories>
@@ -44,113 +30,65 @@
   </pluginRepositories>
 
   <properties>
-    <!--  to get jenkins.model.queue.AsynchronousExecution for JenkinsRule: -->
-    <jenkins.version>1.607</jenkins.version>
-    <jenkins-test-harness.version>2.19</jenkins-test-harness.version>
-    <workflow-plugin.version>1.14.2</workflow-plugin.version>
+    <revision>2.4</revision>
+    <changelist>-SNAPSHOT</changelist>
+    <gitHubRepo>jenkinsci/test-stability-plugin</gitHubRepo>
+    <jenkins.baseline>2.440</jenkins.baseline>
+    <jenkins.version>${jenkins.baseline}.3</jenkins.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
-  
-  
-  <dependencies>
-      <dependency>
-          <groupId>org.jenkins-ci.plugins</groupId>
-          <artifactId>junit</artifactId>
-          <scope>compile</scope>
-          <!-- updated for https://issues.jenkins-ci.org/browse/JENKINS-26535 -->
-          <version>1.14</version>
-      </dependency>
-      <!-- test dependencies -->
-      <dependency>
-          <groupId>org.assertj</groupId>
-          <artifactId>assertj-core</artifactId>
-          <version>2.6.0</version>
-          <scope>test</scope>
-      </dependency>
-      <dependency>
-          <groupId>org.jenkins-ci.plugins.workflow</groupId>
-          <artifactId>workflow-basic-steps</artifactId>
-          <version>${workflow-plugin.version}</version>
-          <scope>test</scope>
-      </dependency>
-      <dependency>
-          <groupId>org.jenkins-ci.plugins.workflow</groupId>
-          <artifactId>workflow-cps</artifactId>
-          <version>${workflow-plugin.version}</version>
-          <scope>test</scope>
-      </dependency>
-      <dependency>
-          <groupId>org.jenkins-ci.plugins.workflow</groupId>
-          <artifactId>workflow-durable-task-step</artifactId>
-          <version>${workflow-plugin.version}</version>
-          <scope>test</scope>
-      </dependency>
-      <dependency>
-          <groupId>org.jenkins-ci.plugins.workflow</groupId>
-          <artifactId>workflow-job</artifactId>
-          <version>${workflow-plugin.version}</version>
-          <scope>test</scope>
-      </dependency>
-  </dependencies>
-  
-  <build>
-  	<pluginManagement>
-  		<plugins>
-  			<!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself.-->
-  			<plugin>
-  				<groupId>org.eclipse.m2e</groupId>
-  				<artifactId>lifecycle-mapping</artifactId>
-  				<version>1.0.0</version>
-  				<configuration>
-  					<lifecycleMappingMetadata>
-  						<pluginExecutions>
-  							<pluginExecution>
-  								<pluginExecutionFilter>
-  									<groupId>
-  										org.jenkins-ci.tools
-  									</groupId>
-  									<artifactId>
-  										maven-hpi-plugin
-  									</artifactId>
-  									<versionRange>
-  										[1.74,)
-  									</versionRange>
-  									<goals>
-  										<goal>insert-test</goal>
-  										<goal>
-  											resolve-test-dependencies
-  										</goal>
-  										<goal>test-hpl</goal>
-  										<goal>validate</goal>
-  									</goals>
-  								</pluginExecutionFilter>
-  								<action>
-  									<execute />
-  								</action>
-  							</pluginExecution>
-  						</pluginExecutions>
-  					</lifecycleMappingMetadata>
-  				</configuration>
-  			</plugin>
-  		</plugins>
-  	</pluginManagement>
-  </build>
-  
-  <scm>
-    <connection>scm:git:ssh://github.com/jenkinsci/test-stability-plugin.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/jenkinsci/test-stability-plugin.git</developerConnection>
-    <url>https://github.com/jenkinsci/test-stability-plugin</url>
-    <tag>HEAD</tag>
-  </scm>
 
-  <distributionManagement>
-    <repository>
-      <id>repo.jenkins-ci.org</id>
-      <url>https://repo.jenkins-ci.org/releases</url>
-    </repository>
-    <snapshotRepository>
-      <id>repo.jenkins-ci.org</id>
-      <url>https://repo.jenkins-ci.org/snapshots</url>
-    </snapshotRepository>
-  </distributionManagement>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.jenkins.tools.bom</groupId>
+        <artifactId>bom-${jenkins.baseline}.x</artifactId>
+        <version>3208.vb_21177d4b_cd9</version>
+        <scope>import</scope>
+        <type>pom</type>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>junit</artifactId>
+      <version>1279.v72cf99b_25c43</version>
+    </dependency>
+    <!-- test dependencies -->
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.26.3</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-basic-steps</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-cps</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-durable-task-step</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-job</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <scm>
+    <connection>scm:git:ssh://github.com/${gitHubRepo}.git</connection>
+    <developerConnection>scm:git:git@github.com:${gitHubRepo}.git</developerConnection>
+    <url>https://github.com/${gitHubRepo}</url>
+    <tag>${scmTag}</tag>
+  </scm>
 </project>
