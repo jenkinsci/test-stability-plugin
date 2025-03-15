@@ -46,7 +46,7 @@ import java.util.Map;
 import net.sf.json.JSONObject;
 
 import org.kohsuke.stapler.DataBoundConstructor;
-import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerRequest2;
 
 import de.esailors.jenkins.teststability.StabilityTestData.Result;
 
@@ -292,7 +292,7 @@ public class StabilityTestDataPublisher extends TestDataPublisher {
 		private int maxHistoryLength = 30;
 
 		@Override
-		public boolean configure(StaplerRequest req, JSONObject json)
+		public boolean configure(StaplerRequest2 req, JSONObject json)
 				throws FormException {
 			this.maxHistoryLength = json.getInt("maxHistoryLength");
 			
