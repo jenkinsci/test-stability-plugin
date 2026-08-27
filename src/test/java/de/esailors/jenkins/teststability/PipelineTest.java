@@ -14,10 +14,13 @@ import org.jvnet.hudson.test.JenkinsRule;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.List;
 
 import static de.esailors.jenkins.teststability.Helper.expectConsistentMixedResults;
+import static de.esailors.jenkins.teststability.Helper.expectMixedResultsAfterSuccess;
 import static de.esailors.jenkins.teststability.Helper.expectSuccessAfter2MixedResults;
 import static de.esailors.jenkins.teststability.Helper.getClassResult;
+import static de.esailors.jenkins.teststability.Helper.stabilityActionsOf;
 import static de.esailors.jenkins.teststability.Helper.testResult;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -59,6 +62,51 @@ public class PipelineTest {
         // Build again, but now all tests pass:
         Run build5 = runBuild(project, "workspaceAllPass.zip", "pipelineWithPublisher.groovy", Result.SUCCESS);
         expectSuccessAfter2MixedResults(testResult(build5));
+    }
+
+    /**
+     * A build may call the {@code junit} step more than once, e.g. once per stage. Jenkins keeps a
+     * single {@code TestResultAction} per build and appends one {@code Data} per call to it, then
+     * concatenates the {@code TestAction}s of every {@code Data} when it renders a test.
+     *
+     * <p>Each {@code Data} must therefore answer only for the tests its own {@code junit} call
+     * parsed. When it answers for all of them, every test is annotated once per {@code junit} call
+     * -- its real verdict plus a "No known failures" default from each of the others -- and
+     * {@code getTestAction(StabilityTestAction.class)}, which returns the first match, starts
+     * handing back whichever default happens to come first. That also breaks
+     * {@code getPreviousHistory}, so a test's recorded history is silently dropped.
+     */
+    @Test
+    public void oneStabilityActionPerTestWhenJunitIsCalledPerStage() throws Exception {
+        WorkflowJob project = j.jenkins.createProject(WorkflowJob.class, "test-job");
+
+        // stage A publishes DefaultIntegrationTest + BundleResolverIntegrationTest (passing),
+        // stage B publishes ProjectSettingsTest (failing).
+        Run build1 = runBuild(project, "workspacePerStageMixed.zip", "pipelinePerStagePublisher.groovy", Result.UNSTABLE);
+
+        // The regression: exactly one verdict per test, not one per junit call.
+        for (String className : new String[]{"DefaultIntegrationTest", "BundleResolverIntegrationTest", "ProjectSettingsTest"}) {
+            ClassResult classResult = getClassResult(testResult(build1), "test.foo.bar", className);
+            List<StabilityTestAction> actions = stabilityActionsOf(classResult);
+            assertThat(actions)
+                    .as("stability actions on %s after 2 junit calls", className)
+                    .hasSize(1);
+        }
+
+        // The single surviving action is the right one: the test published by stage B is still
+        // reported as failing, rather than picking up stage A's "No known failures" default.
+        expectConsistentMixedResults(testResult(build1));
+
+        // Re-run with everything passing. ProjectSettingsTest can only reach 50% stability /
+        // 100% flakiness if build1's history was found, which requires the first (and only)
+        // StabilityTestAction on build1 to be the one that actually knows the test.
+        Run build2 = runBuild(project, "workspacePerStageAllPass.zip", "pipelinePerStagePublisher.groovy", Result.SUCCESS);
+
+        ClassResult projectSettings = getClassResult(testResult(build2), "test.foo.bar", "ProjectSettingsTest");
+        assertThat(stabilityActionsOf(projectSettings))
+                .as("stability actions on ProjectSettingsTest in the second build")
+                .hasSize(1);
+        expectMixedResultsAfterSuccess(testResult(build2));
     }
 
     // Creates a job from the given workspace zip file, builds it and returns the WorkflowRun
