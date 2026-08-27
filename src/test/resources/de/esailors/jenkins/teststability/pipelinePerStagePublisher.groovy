@@ -24,15 +24,15 @@ package de.esailors.jenkins.teststability
  *
  */
 
-// Publishes a disjoint slice of the build's tests from each of two stages, the way a
-// pipeline that runs a suite per stage does. Jenkins appends one Data per junit call to
-// the build's single TestResultAction, so this is what makes a test visible to a Data
-// that never parsed it.
+// Publishes a disjoint slice of the build's tests from each of two junit calls, the way a
+// pipeline that runs a suite per stage does. Jenkins appends one Data per junit call to the
+// build's single TestResultAction, so this is what makes a test visible to a Data that never
+// parsed it.
+//
+// The calls are not wrapped in stage(), because pipeline-stage-step is not on the test
+// classpath and stages are not what drives this. Each junit call is its own FlowNode and
+// contributes its own Data whether or not a stage encloses it.
 node {
-    stage('stage A') {
-        junit testResults: 'reportA.xml', testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
-    }
-    stage('stage B') {
-        junit testResults: 'reportB.xml', testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
-    }
+    junit testResults: 'reportA.xml', testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
+    junit testResults: 'reportB.xml', testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
 }

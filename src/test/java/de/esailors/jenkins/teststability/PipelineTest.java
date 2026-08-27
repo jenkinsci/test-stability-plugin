@@ -80,8 +80,8 @@ public class PipelineTest {
     public void oneStabilityActionPerTestWhenJunitIsCalledPerStage() throws Exception {
         WorkflowJob project = j.jenkins.createProject(WorkflowJob.class, "test-job");
 
-        // stage A publishes DefaultIntegrationTest + BundleResolverIntegrationTest (passing),
-        // stage B publishes ProjectSettingsTest (failing).
+        // The first junit call publishes DefaultIntegrationTest + BundleResolverIntegrationTest
+        // (passing), the second publishes ProjectSettingsTest (failing).
         Run build1 = runBuild(project, "workspacePerStageMixed.zip", "pipelinePerStagePublisher.groovy", Result.UNSTABLE);
 
         // The regression: exactly one verdict per test, not one per junit call.
@@ -93,8 +93,8 @@ public class PipelineTest {
                     .hasSize(1);
         }
 
-        // The single surviving action is the right one: the test published by stage B is still
-        // reported as failing, rather than picking up stage A's "No known failures" default.
+        // The single surviving action is the right one: the test published by the second call is
+        // still reported as failing, rather than picking up the first call's default.
         expectConsistentMixedResults(testResult(build1));
 
         // Re-run with everything passing. ProjectSettingsTest can only reach 50% stability /
