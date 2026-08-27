@@ -40,8 +40,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.sf.json.JSONObject;
 
@@ -72,12 +74,17 @@ public class StabilityTestDataPublisher extends TestDataPublisher {
 								   TestResult testResult) throws IOException, InterruptedException {
 
 		Map<String,CircularStabilityHistory> stabilityHistoryPerTest = new HashMap<String,CircularStabilityHistory>();
+		// Every test this junit() call parsed, so that the resulting Data only speaks
+		// for these and not for tests published by other junit() calls in this build.
+		Set<String> coveredTestIds = new HashSet<String>();
 
 		// NB: abstract TestResult
 		Collection<hudson.tasks.test.TestResult> classAndCaseResults = getClassAndCaseResults(testResult);
 		debug("Found " + classAndCaseResults.size() + " test results", listener);
 		// NB: abstract TestResult
 		for (hudson.tasks.test.TestResult result: classAndCaseResults) {
+			
+			coveredTestIds.add(result.getId());
 			
 			CircularStabilityHistory history = getPreviousHistory(result);
 
@@ -115,7 +122,7 @@ public class StabilityTestDataPublisher extends TestDataPublisher {
 			}
 		}
 		
-		return new StabilityTestData(stabilityHistoryPerTest);
+		return new StabilityTestData(stabilityHistoryPerTest, coveredTestIds);
 	}
 	
 	private void debug(String msg, TaskListener listener) {

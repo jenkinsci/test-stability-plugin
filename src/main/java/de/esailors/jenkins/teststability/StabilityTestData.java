@@ -32,6 +32,7 @@ import hudson.tasks.junit.CaseResult;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import jenkins.model.Jenkins;
 
@@ -50,15 +51,42 @@ class StabilityTestData extends Data {
 	
 	private final Map<String,CircularStabilityHistory> stability;
 	
-	public StabilityTestData(Map<String, CircularStabilityHistory> stabilityHistory) {
+	/**
+	 * IDs of the tests that the {@code junit} step which produced this {@link Data}
+	 * actually parsed.
+	 * 
+	 * <p>A build may run the {@code junit} step more than once, e.g. once per pipeline
+	 * stage. Jenkins keeps a single {@code TestResultAction} per build and appends one
+	 * {@link Data} per call to it, then concatenates the {@link TestAction}s of every
+	 * {@link Data} when it renders a test. Without this set each {@link Data} answers
+	 * for every test in the build, so a test gets annotated once per {@code junit}
+	 * call: its real verdict plus a "No known failures" default from every other call.
+	 * 
+	 * <p>{@code null} for data serialized by an earlier release of this plugin, in
+	 * which case we fall back to the previous build-wide behaviour.
+	 */
+	private final Set<String> coveredTestIds;
+	
+	public StabilityTestData(Map<String, CircularStabilityHistory> stabilityHistory, Set<String> coveredTestIds) {
 		this.stability = stabilityHistory;
+		this.coveredTestIds = coveredTestIds;
 	}
 
 	@Override
 	public List<? extends TestAction> getTestAction(TestObject testObject) {
 		
 		if (testObject instanceof CaseResult || testObject instanceof ClassResult) {
-			CircularStabilityHistory ringBuffer = stability.get(testObject.getId());
+			String id = testObject.getId();
+			
+			// A different junit() call in this build parsed this test, and its own Data
+			// will annotate it. Stay quiet so the test is annotated exactly once.
+			if (coveredTestIds != null && !coveredTestIds.contains(id)) {
+				return Collections.emptyList();
+			}
+			
+			// A null ring buffer means "nothing recorded against a test we did parse",
+			// which StabilityTestAction renders as the "No known failures" verdict.
+			CircularStabilityHistory ringBuffer = stability.get(id);
 			return Collections.singletonList(new StabilityTestAction(ringBuffer));
 		}
 		
